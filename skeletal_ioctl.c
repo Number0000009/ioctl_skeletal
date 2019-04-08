@@ -1,7 +1,10 @@
 #include <linux/module.h>
-#include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/version.h>
+#include <linux/fs.h>
+#include <linux/types.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
 
 
 #define IOC_API_VERSION 12
@@ -107,12 +110,32 @@ static long skeletal_ioctl(struct file *filep, unsigned int cmd, unsigned long a
 	return ret;
 }
 
+static int debug_show(struct seq_file *seq, void *data)
+{
+	seq_printf(seq, "henlo world\n");
+	return 0;
+}
+
+static int debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, debug_show, NULL);
+};
+
 static const struct file_operations fops =
 {
 	.owner = THIS_MODULE,
 	.open = skeletal_open,
 	.release = skeletal_release,
+	.llseek = noop_llseek,
 	.unlocked_ioctl = skeletal_ioctl
+};
+
+static const struct file_operations debug_fops = {
+	.owner   = THIS_MODULE,
+	.open    = debug_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
 };
 
 static struct miscdevice misc_dev =
@@ -121,20 +144,27 @@ static struct miscdevice misc_dev =
 	.fops = &fops
 };
 
+static struct dentry *debugfs_dir;
+
 static int __init skeletal_init(void)
 {
-	int ret = 0;
+	int ret;
 
-	if (misc_register(&misc_dev)) {
+	ret = misc_register(&misc_dev);
+	if (ret) {
 		pr_err("Failed to register device!\n");
-		ret = -ENODEV;
-		goto fail;
+		return ret;
 	}
 
 	dev = misc_dev.this_device;
 
-fail:
-	return ret;
+	debugfs_dir = debugfs_create_dir(misc_dev.name, NULL);
+	if (IS_ERR(debugfs_dir))
+		return PTR_ERR(debugfs_dir);
+
+	debugfs_create_file("version", 0444, debugfs_dir, NULL, &debug_fops);
+
+	return 0;
 }
 
 static void __exit skeletal_exit(void)

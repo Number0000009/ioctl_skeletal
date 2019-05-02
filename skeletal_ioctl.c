@@ -116,11 +116,6 @@ static int debug_show(struct seq_file *seq, void *data)
 	return 0;
 }
 
-static int debug_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, debug_show, NULL);
-};
-
 static const struct file_operations fops =
 {
 	.owner = THIS_MODULE,
@@ -130,20 +125,13 @@ static const struct file_operations fops =
 	.unlocked_ioctl = skeletal_ioctl
 };
 
-static const struct file_operations debug_fops = {
-	.owner   = THIS_MODULE,
-	.open    = debug_open,
-	.read    = seq_read,
-	.llseek  = seq_lseek,
-	.release = single_release
-};
-
 static struct miscdevice misc_dev =
 {
 	.name = "skeletal",
 	.fops = &fops
 };
 
+DEFINE_SHOW_ATTRIBUTE(debug);
 static struct dentry *debugfs_dir;
 
 static int __init skeletal_init(void)
